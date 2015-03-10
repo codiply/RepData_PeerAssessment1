@@ -26,19 +26,21 @@ I combine the date and the interval into a datetime.
 
 ```{r}
 df$datetime <- as.POSIXct(paste(df$date, sprintf("%.4d", df$interval)), format="%Y-%m-%d %H%M")
-
+head(df$datetime)
 ```
 
 I parse the date string into a date value. 
 
 ```{r}
 df$date <- as.Date(df$date, format="%Y-%m-%d")
+head(df$date)
 ```
 
-I parse the interval into a datetime where I will only use the time.
+I parse the interval into a datetime where I will only use the time. (Note that todays date is going to be used, but we will ignore this part)
 
 ```{r}
 df$time <- as.POSIXct(sprintf("%.4d", df$interval), format="%H%M")
+head(df$time)
 ```
 
 
@@ -48,23 +50,23 @@ I keep the part of the data where the steps are not missing.
 
 ```{r}
 df.not.na <- df[!is.na(df$steps),]
-total <- aggregate(df.not.na$steps, list(df.not.na$date), sum)
-names(total) <- c("date", "steps")
+day.total <- aggregate(df.not.na$steps, list(df.not.na$date), sum)
+names(day.total) <- c("date", "steps")
 
-meanTotalSteps <- mean(total$steps)
-medianTotalSteps <- median(total$steps)
+meanTotalSteps <- mean(day.total$steps)
+medianTotalSteps <- median(day.total$steps)
 ```
 
 The total number of steps per day has
 
-- mean equal to **```r sprintf("%.1f", meanTotalSteps)```**, and
-- median equal to **```r medianTotalSteps```**.
+- mean equal to **`r sprintf("%.1f", meanTotalSteps)`**, and
+- median equal to **`r medianTotalSteps`**.
 
 I make a histogram of the total number of steps pre day, and draw the mean and the median.
 
 ```{r}
 library(ggplot2)
-h <- ggplot(total, aes(x=steps)) + 
+h <- ggplot(day.total, aes(x=steps)) + 
      geom_histogram(binwidth=1000, colour="black", fill="red") + 
      xlab("Total number of steps per day") +
      geom_vline(xintercept=meanTotalSteps, color="blue", size=1.5) +
@@ -82,14 +84,14 @@ h
 I average the number of steps for each 5-minute interval accross all days.
 
 ```{r}
-average <- aggregate(df.not.na$steps, list(df.not.na$time), mean)
-names(average) <- c("time", "steps")
+interval.average <- aggregate(df.not.na$steps, list(df.not.na$time), mean)
+names(interval.average) <- c("time", "steps")
 ```
 
 I find the time of the interval with the maximum number of steps.
 
 ```{r}
-maxStepInterval <- average[which.max(average$steps),]$time
+maxStepInterval <- interval.average[which.max(interval.average$steps),]$time
 maxStepTime <- strftime(maxStepInterval, format="%H:%M")
 ```
 
@@ -100,12 +102,12 @@ I make a time series plot of the average number of steps for each 5-minute inter
 ```{r}
 library(scales)
 
-p <- ggplot(average, aes(x=time, y=steps)) + geom_line() +
+p <- ggplot(interval.average, aes(x=time, y=steps)) + geom_line() +
      xlab("5-minute interval") +
      ylab("Average number of steps") +
      scale_x_datetime(breaks=("2 hour"), 
                       labels=date_format("%H:%M")) +
-     geom_vline(xintercept=as.numeric(maxStepInterval), color="red", linetype="dashed", size=0.5) +
+     geom_vline(xintercept=as.numeric(maxStepInterval), color="red", linetype="dashed", size=0.75) +
      geom_text(aes(x=maxStepInterval, label=paste(maxStepTime, "\n"), y=25), 
                colour="red", angle=90, text=element_text(size=7))
      
@@ -114,6 +116,111 @@ p
 
 ## Imputing missing values
 
+The number of missing values for each column is:
 
+```{r}
+sapply(names(df), function(c) sum(is.na(df[,c])))
+```
+
+I add the day of the week to the data frame.
+
+```{r}
+df$day <- weekdays(as.Date(df$date))
+head(df$day)
+```
+
+I add a column that contains the date of the week and the 5-minute interval combined into one field.
+
+```{r}
+df$day.interval <- as.factor(paste(df$day, sprintf("%.4d", df$interval)))
+head(df$day.interval)
+```
+
+I calculate the average number of steps for a specific interval in a specific day of the week.
+
+```{r}
+day.interval.average <- aggregate(df$steps, list(df$day.interval), mean, na.rm=TRUE)
+names(day.interval.average) <- c("day.interval","steps")
+head(day.interval.average)
+```
+
+I create a new data frame and fill in the missing steps with the average steps accross all weeks, for the same interval and day of the week.
+
+```{r, cache=TRUE}
+average.for.day.interval <- function(day.interv) {
+    day.interval.average[day.interval.average$day.interval == day.interv,"steps"]
+}
+df.imputed <- transform(df, steps = ifelse(is.na(steps), sapply(df$day.interval, average.for.day.interval), steps))
+```
+
+I double check that there are no missing values in the imputed data frame.
+
+```{r}
+sapply(names(df.imputed), function(c) sum(is.na(df.imputed[,c])))
+```
+
+```{r}
+day.total2 <- aggregate(df.imputed$steps, list(df.imputed$date), sum)
+names(day.total2) <- c("date", "steps")
+meanTotalSteps2 <- mean(day.total2$steps)
+medianTotalSteps2 <- median(day.total2$steps)
+```
+
+The total number of steps per day in the imputed data has
+
+- mean equal to **`r sprintf("%.1f", meanTotalSteps2)`**, and
+- median equal to **`r sprintf("%.1f", medianTotalSteps2)`**.
+
+The change in these values compared to the data with missing values is
+
+- mean change: **`r sprintf("%.1f", meanTotalSteps2-meanTotalSteps)`**, and
+- median change: **`r sprintf("%.1f", medianTotalSteps2-medianTotalSteps)`**.
+
+Both the mean and median have increased. The median has increased 
+**`r sprintf("%.1f", (medianTotalSteps2 - medianTotalSteps)/(meanTotalSteps2-meanTotalSteps))`**
+times more compared to the increase of the mean.
+
+I make a histogram of the total number of steps per day, and draw the mean and the median, this time for the imputed data.
+
+```{r}
+h2 <- ggplot(day.total2, aes(x=steps)) + 
+      geom_histogram(binwidth=1000, colour="black", fill="red") + 
+      xlab("Total number of steps per day") +
+      geom_vline(xintercept=meanTotalSteps2, color="blue", size=1.5) +
+      geom_vline(xintercept=medianTotalSteps2, color="green", linetype="dashed", size=1.5) + 
+      geom_text(aes(x=meanTotalSteps2, label="Mean\n", y=4), 
+                colour="blue", angle=90, text=element_text(size=10)) +
+      geom_text(aes(x=medianTotalSteps2, label="\nMedian", y=4), 
+                colour="green", angle=90, text=element_text(size=10))
+h2
+```
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+I create a factor variable that tells whether the sample is during the weekend or a weekday.
+```{r}
+df.imputed$weekday = as.factor(ifelse(df.imputed$day == "Saturday" | df.imputed$day == "Sunday", 
+                                      "weekend", "weekday"))
+```
+
+I take the the mean number of steps for each interval during the week and during the weekend separately.
+
+```{r}
+weekday.interval.average <- aggregate(steps ~ time + weekday, data=df.imputed, mean)
+```
+
+I plot the average steps during the week and during the weekend.
+
+```{r}
+p2 <- ggplot(weekday.interval.average, aes(x=time,y=steps)) + 
+      geom_line() +
+      xlab("5-minute interval") +
+      ylab("Average number of steps") +
+      facet_grid(weekday ~ .) +
+      scale_x_datetime(breaks=("2 hour"), 
+                       labels=date_format("%H:%M"))
+p2
+
+```
+
+
