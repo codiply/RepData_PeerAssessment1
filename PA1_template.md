@@ -95,9 +95,9 @@ head(df$time)
 ```
 
 ```
-## [1] "2015-03-10 00:00:00 GMT" "2015-03-10 00:05:00 GMT"
-## [3] "2015-03-10 00:10:00 GMT" "2015-03-10 00:15:00 GMT"
-## [5] "2015-03-10 00:20:00 GMT" "2015-03-10 00:25:00 GMT"
+## [1] "2015-03-12 00:00:00 GMT" "2015-03-12 00:05:00 GMT"
+## [3] "2015-03-12 00:10:00 GMT" "2015-03-12 00:15:00 GMT"
+## [5] "2015-03-12 00:20:00 GMT" "2015-03-12 00:25:00 GMT"
 ```
 
 
@@ -219,35 +219,16 @@ head(df$day.interval)
 ## 2016 Levels: Friday 0000 Friday 0005 Friday 0010 Friday 0015 ... Wednesday 2355
 ```
 
-I calculate the average number of steps for a specific interval in a specific day of the week.
-
-
-```r
-day.interval.average <- aggregate(df$steps, list(df$day.interval), mean, na.rm=TRUE)
-names(day.interval.average) <- c("day.interval","steps")
-head(day.interval.average)
-```
-
-```
-##   day.interval steps
-## 1  Friday 0000     0
-## 2  Friday 0005     0
-## 3  Friday 0010     0
-## 4  Friday 0015     0
-## 5  Friday 0020     0
-## 6  Friday 0025     0
-```
-
 I create a new data frame and fill in the missing steps with the average steps accross all weeks, for the same interval and day of the week.
 
 
 ```r
-average.for.day.interval <- function(day.interv) {
-    day.interval.average[day.interval.average$day.interval == day.interv,"steps"]
-}
-df.imputed <- transform(df, steps = ifelse(is.na(steps), 
-                                           sapply(df$day.interval, average.for.day.interval), 
-                                           steps))
+df.imputed <- transform(df, 
+                        steps = ifelse(is.na(steps), 
+                                       ave(df$steps, 
+                                           df$day.interval, 
+                                           FUN=function(x) mean(x, na.rm=TRUE)), 
+                                       steps))
 ```
 
 I double check that there are no missing values in the imputed data frame.
@@ -302,7 +283,7 @@ h2 <- ggplot(day.total2, aes(x=steps)) +
 h2
 ```
 
-![plot of chunk unnamed-chunk-18](figure/unnamed-chunk-18-1.png) 
+![plot of chunk unnamed-chunk-17](figure/unnamed-chunk-17-1.png) 
 
 ## Are there differences in activity patterns between weekdays and weekends?
 
@@ -334,6 +315,6 @@ p2 <- ggplot(weekday.interval.average, aes(x=time,y=steps)) +
 p2
 ```
 
-![plot of chunk unnamed-chunk-21](figure/unnamed-chunk-21-1.png) 
+![plot of chunk unnamed-chunk-20](figure/unnamed-chunk-20-1.png) 
 
 

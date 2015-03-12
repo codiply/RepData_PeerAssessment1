@@ -136,23 +136,15 @@ df$day.interval <- as.factor(paste(df$day, sprintf("%.4d", df$interval)))
 head(df$day.interval)
 ```
 
-I calculate the average number of steps for a specific interval in a specific day of the week.
-
-```{r}
-day.interval.average <- aggregate(df$steps, list(df$day.interval), mean, na.rm=TRUE)
-names(day.interval.average) <- c("day.interval","steps")
-head(day.interval.average)
-```
-
 I create a new data frame and fill in the missing steps with the average steps accross all weeks, for the same interval and day of the week.
 
 ```{r}
-average.for.day.interval <- function(day.interv) {
-    day.interval.average[day.interval.average$day.interval == day.interv,"steps"]
-}
-df.imputed <- transform(df, steps = ifelse(is.na(steps), 
-                                           sapply(df$day.interval, average.for.day.interval), 
-                                           steps))
+df.imputed <- transform(df, 
+                        steps = ifelse(is.na(steps), 
+                                       ave(df$steps, 
+                                           df$day.interval, 
+                                           FUN=function(x) mean(x, na.rm=TRUE)), 
+                                       steps))
 ```
 
 I double check that there are no missing values in the imputed data frame.
